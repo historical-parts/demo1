@@ -189,15 +189,20 @@ const close_modal = ()=> {
 }
 document.querySelector('.modal .close').onclick = close_modal
 
+// repo https://github.com/historical-parts/demo1/tree/main
+// live https://historical-parts.github.io/demo1/
+
+
+
 const main = async ()=> {
-	const response = await fetch('/data/out.json')
+	const response = await fetch('./data/out.json')
 	const parts = (await response.json()) // .slice(0, 10)
 	window.parts = parts
 
 	const by_id = new Map()
 	parts.map(p=> by_id.set(p.products_id, p))
 
-	const _extracted = await fetch('/data/extracted1.json')
+	const _extracted = await fetch('./data/extracted1.json')
 	const extracted = await _extracted.json()
 	window.extracted = extracted
 	extracted.map(e=> {
