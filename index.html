@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Historical Parts</title>
+<style>
+
+* {
+	box-sizing: border-box;
+	margin:0;
+	padding:0;
+}
+html, body {
+	background: hsl(36, 14%, 60%);
+	color: #111;
+}
+body {
+	font-family: sans-serif;
+}
+.container {
+	margin: 0 auto;
+	margin-top: 30px;
+	width: calc(100% - 100px);
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	grid-gap: 50px 10px;
+}
+.container > div {
+	--padding: 1em;
+	--border: 1px solid #000;
+	justify-self: center;
+	align-self: end;
+	transition: transform 0.3s, box-shadow 0.3s;
+}
+.container > div:hover {
+	transform: scale(1.05);
+	box-shadow: 0 10px 30px 0px rgba(0,0,0,0.3);
+}
+img {
+	--width: 100%;
+	height: 300px;
+	display: block;
+}
+h1 {
+	font-size: 1.5em;
+}
+p {
+	font-size: 1em;
+	line-height: 1.5em;
+}
+
+.modal {
+	display: none;
+	position: fixed;
+	z-index: 1;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	background-color: rgba(0,0,0,0.4);
+}
+.modal.visible {
+	display: block;
+}
+
+
+
+.modal-content {
+	position: relative;
+	background-color: #fefefe;
+	margin: 5% auto;
+	padding: 20px;
+	border: 1px solid #888;
+	width: 50%;
+	height: 80%;
+	border-radius: 10px;
+}
+
+.modal .modal-content {
+	transform: scale(0.9);
+	opacity: 0;
+	transition: transform 0.3s, opacity 0.3s;
+}
+.modal.shown .modal-content {
+	transform: scale(1);
+	opacity: 1;
+}
+
+.close {
+	position: absolute;
+	top: 0;
+	right: 10px;
+	font-size: 2em;
+	cursor: pointer;
+	z-index: 10;
+}
+
+.modal .image {
+	width: 40%;
+	height: 100%;
+	background-size: contain;
+	background-position: left center;
+	background-repeat: no-repeat;
+}
+
+.modal .content {
+	width: 60%;
+	height: 100%;
+	overflow: auto;
+	padding: 20px;
+	position: absolute;
+	top: 0;
+	right: 0px;
+}
+
+
+</style>
+</head>
+<body>
+
+<div class="container">
+	<div style="display:none" class="tmp">
+		<h1>Example Door</h1>
+		<p>Example description</p>
+		<img src="down/overjarva2/door.jpg">
+	</div>
+</div>
+
+<div class="modal">
+	<div class="modal-content">
+		<span class="close">&times;</span>
+		<div class="image"></div>
+		<div class="content">
+			<h1></h1>
+			<p></p>
+		</div>
+	</div>
+</div>
+
+
+<script type="importmap">
+{
+	"imports": {
+		"vue": "./vendor/vue@3.4.15/dist/vue.esm-browser.js"
+	}
+}
+</script>
+<script type="module">
+import { createApp, ref } from 'vue'
+
+const app = createApp({
+	setup() {
+		return {
+			page_title: 'Historical Parts',
+			message,
+		}
+	}
+})
+app.mount('#app')
+</script>
+
+<script>
+
+const show_modal = ({image, title, description: text})=> {
+	const modal = document.querySelector('.modal')
+	const _image = modal.querySelector('.image')
+	_image.style.backgroundImage = `url(${image})`
+	
+	const content = modal.querySelector('.content')
+	content.querySelector('h1').innerText = title
+	content.querySelector('p').innerText = text
+
+	setTimeout(()=> {
+		modal.classList.add('visible')
+		setTimeout(()=> {
+			modal.classList.add('shown')
+		}, 100)
+	}, 10)
+}
+const close_modal = ()=> {
+	const modal = document.querySelector('.modal')
+	setTimeout(()=> {
+		modal.classList.remove('show')
+		setTimeout(()=> {
+			modal.classList.remove('visible')
+		}, 500)
+	}, 10)
+}
+document.querySelector('.modal .close').onclick = close_modal
+
+const main = async ()=> {
+	const response = await fetch('/data/out.json')
+	const parts = (await response.json()) // .slice(0, 10)
+	window.parts = parts
+
+	const by_id = new Map()
+	parts.map(p=> by_id.set(p.products_id, p))
+
+	const _extracted = await fetch('/data/extracted1.json')
+	const extracted = await _extracted.json()
+	window.extracted = extracted
+	extracted.map(e=> {
+		const p = by_id.get(e.id)
+		if (!p) {
+			console.warn('part missing', e.id)
+			return
+		}
+		Object.assign(p, e)
+	})
+
+	const s3_base = 'https://historicalparts-stage1.s3.eu-north-1.amazonaws.com'
+	parts.map(p=> {
+		p.image = p.image.replace('http://', 'down/overjarva2/')
+		p.thumb1 = p.image.replace(/\/image\/([^/]+)\/(.*)$/, '/thumb/$1/350x350/$2')
+		p.thumb2 = p.image.replace(/\/image\/([^/]+)\/(.*)$/, '/thumb/$1/350x0/$2')
+		p.thumb = `${s3_base}/images/thumbs/${p.products_id}-0.jpg`
+	})
+
+	
+	const container = document.querySelector('.container')
+	document.querySelector('.container > .tmp').remove()
+
+
+	window.after_query = (fn)=> {
+		container.innerHTML = ''
+		fn(parts).map(p=> {
+			const div = document.createElement('div')
+	
+			false && (div.innerHTML = `
+				<h1>${p.title.replace(/<|>/g, '-')}</h1>
+				<p>${p.description.replace(/<|>/g, '-').replace(/\\n/g, '<br>')}</p>	
+			`)
+			const img = document.createElement('img')
+			img.src = p.thumb
+			div.appendChild(img)
+	
+			div.onclick = ()=> show_modal(p)
+	
+			container.appendChild(div)
+		})
+	}
+	after_query(p=> p)
+}
+main().catch(console.error)
+</script>
+</body>
+</html>
